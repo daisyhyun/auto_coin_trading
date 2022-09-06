@@ -63,3 +63,5 @@ def sell_order(ticker,amount,price):
     except:
         pass
 
+balance = binance.fetch_balance() #현재 usdt 잔고
+print(balance['USDT'])
