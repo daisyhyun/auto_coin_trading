@@ -101,7 +101,15 @@ def setcandledata(symbol):
         'close_time' : [datetime.fromtimestamp(x[6]/1000,timezone.utc) for x in klines],
     })
     ta_rsi = ta.RSI(df['close'],timeperiod=14)
+    ta_stochfast,ta_stochslow = ta.STOCH(high=df['high'], low=df['low'],close=df['close'],
+                fastk_period=3, slowk_period=1, slowd_period=1)
+    macd,macdsig,macdhig = ta.MACD(real=df['close'],fastperiod=12,slowperiod=26,signalperiod=9)
     print(ta_rsi[-1:].values[0])
+    print(ta_stochfast[-1:].values[0])
+    print(ta_stochslow[-1:].values[0])
+    print(macd[-1:].values[0])
+    print(macdsig[-1:].values[0])
+    print(macdhig[-1:].values[0])
 
 
 info = client.get_account()
