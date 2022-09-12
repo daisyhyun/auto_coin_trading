@@ -90,7 +90,7 @@ def setcandledata(symbol):
     from binance.spot import Spot as cl
     client = cl(api_key,api_secret)
     symbol = symbol #BTCUSDT로 현재 fix
-    klines = client.klines('BTCUSDT','4h',limit=200) #캔들 원하는 봉 갯수
+    klines = client.klines(symbol,'1h',limit=200) #캔들 원하는 봉 갯수
     df = pd.DataFrame(data={
         'open_time' : [datetime.fromtimestamp(x[0]/1000, timezone.utc) for x in klines],
         'open' : [float(x[1]) for x in klines],
@@ -105,11 +105,12 @@ def setcandledata(symbol):
                 fastk_period=3, slowk_period=1, slowd_period=1)
     macd,macdsig,macdhig = ta.MACD(real=df['close'],fastperiod=12,slowperiod=26,signalperiod=9)
     print(ta_rsi[-1:].values[0])
-    print(ta_stochfast[-1:].values[0])
-    print(ta_stochslow[-1:].values[0])
-    print(macd[-1:].values[0])
-    print(macdsig[-1:].values[0])
-    print(macdhig[-1:].values[0])
+    return ta_rsi[-1:].values[0]
+    #print(ta_stochfast[-1:].values[0])
+    #print(ta_stochslow[-1:].values[0])
+    #print(macd[-1:].values[0])
+    #print(macdsig[-1:].values[0])
+    #print(macdhig[-1:].values[0])
 
 
 info = client.get_account()
@@ -120,7 +121,7 @@ print(df)
 
 portfolio = ["BTCUSDT","ETHUSDT","XRPUSDT"]
 while True:
-    signal = int(input("1 : see price\n2 : buy order\n3 : sell order\n4 : see past price\n5 : see future account\n6 : see coin's rsi\n"))
+    signal = int(input("1 : see price\n2 : buy order\n3 : sell order\n4 : see past price\n5 : see future account\n6 : auto trading\n"))
     if(signal==1):
         while True:
             coin = client.get_symbol_ticker(symbol=portfolio[2])
@@ -166,7 +167,30 @@ while True:
     elif(signal==5):
         future_account_info()
     elif(signal==6):
-        setcandledata('BTCUSDT') #rsi가 20~30에서 매수, 70~80에선 매도를 하도록 구현할것
+        while True:
+            for x in portfolio:
+                balance = binance.fetch_balance()
+                #print(balance)
+                freeusdt = float(balance['USDT']['free'])
+                now_rsi = setcandledata(x) #rsi가 20~30에서 매수, 70~80에선 매도를 하도록 구현할것
+                if(now_rsi<30):
+                    orderbook = client.get_order_book(symbol = x)
+                    asks = float(orderbook['asks'][0][0])
+                    coinquan = float(orderbook['asks'][0][1])
+                    buymoney = asks * coinquan
+                    print(buymoney)
+                    if(buymoney<freeusdt):
+                        buyorder(x,coinquan,asks)
+                    else:
+                        coinquan = (freeusdt/asks)/2
+                        buyorder(x,coinquan,asks)
+                elif(now_rsi>70):
+                    unit = balance[x[:-4]]['free']
+                    if(unit>=0.001):
+                        ret = binance.create_market_sell_order(x, unit)
+            time.sleep(3600)
+                
+        
         
         
                 
