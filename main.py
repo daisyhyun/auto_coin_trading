@@ -26,6 +26,8 @@ def buyorder(symbol,quantity,price):
         price=price
     )
     print(order)
+    df = pd.DataFrame(order) # 매수 내역 저장
+    df.to_csv('buyorder.csv',index=True)
 
 def sellorder(symbol,quantity,price):
     order = client.order_limit_sell(
@@ -34,6 +36,8 @@ def sellorder(symbol,quantity,price):
         price=price
     )
     print(order)
+    df = pd.DataFrame(order) # 매도 내역 저장
+    df.to_csv('sellorder.csv',index=True)
 def cancelorder(symbol,orderId):
     result = client.cancel_order(
         symbol=symbol,
@@ -51,7 +55,6 @@ def get_data(start_date, end_date, symbol, interv):
         'startTime': start,
         'endTime': end
     }
-    
     while start < end:
         params['startTime'] = start
         result = requests.get(URL, params = params)
@@ -70,8 +73,6 @@ def get_data(start_date, end_date, symbol, interv):
     df['trades'] = df['trades'].astype(int)
     print(df[['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume',  'trades']])
 
-def buyalgorithm(symbol):
-    symbol = symbol
     
 def future_account_info():
     infos = client.futures_position_information(symbol='BTCUSDT')   #future position
@@ -85,12 +86,13 @@ def future_account_info():
     df = df.drop(columns=['updateTime'])
     print(df)
 
-def setcandledata(symbol):
+def setcandledata(symbol,ti):
     from datetime import datetime, timezone
     from binance.spot import Spot as cl
     client = cl(api_key,api_secret)
     symbol = symbol #BTCUSDT로 현재 fix
-    klines = client.klines(symbol,'1h',limit=200) #캔들 원하는 봉 갯수
+    ti = ti #유저로부터 입력
+    klines = client.klines(symbol,ti,limit=200) #캔들 원하는 봉 갯수
     df = pd.DataFrame(data={
         'open_time' : [datetime.fromtimestamp(x[0]/1000, timezone.utc) for x in klines],
         'open' : [float(x[1]) for x in klines],
@@ -118,7 +120,6 @@ df = pd.DataFrame(info["balances"])
 df["free"] = df["free"].astype(float).round(4)
 df = df[df["free"] > 0]
 print(df)
-
 portfolio = ["BTCUSDT","ETHUSDT","XRPUSDT"]
 while True:
     signal = int(input("1 : see price\n2 : buy order\n3 : sell order\n4 : see past price\n5 : see future account\n6 : auto trading\n"))
@@ -139,15 +140,22 @@ while True:
         asks = orderbook['asks']
         bids = orderbook['bids']
         pprint.pprint(asks)
-        pprint.pprint(asks)
         pprint.pprint(bids)
-        
         balance = client.get_asset_balance(asset='USDT')
         print("your balance : ",balance)
         quantity, price = map(float,input("Input quantity and price of coin : ").split())
         buyorder(symbol,quantity,price)
     elif(signal==3):
         print("Choose what coin you want to sell") #현재 계좌에 구매하고 있는 코인들의 이름과 가격출력
+        info = client.get_account()
+        df = pd.DataFrame(info["balances"])
+        df["free"] = df["free"].astype(float).round(4)
+        df = df[df["free"] > 0]
+        print(df)
+        symbol = input("Input the coin symbol : ")
+        quantity = float(input("Input the quantity of coin : "))
+        price = float(input("Input the price : "))
+        sellorder(symbol,quantity,price)
     elif(signal==4):
         from datetime import datetime
         result = requests.get('https://api.binance.com/api/v3/ticker/price')
@@ -164,16 +172,17 @@ while True:
         end_date = input("put in end date : ")  #set : 2022-08-01
         interv = input("put in interval : ")
         get_data(start_date, end_date, sym, interv)
-    elif(signal==5):
+    elif(signal==5): #선물 계좌 보여주기
         future_account_info()
     elif(signal==6):
+        ti = input("Input time stick's time(ex : 1h,1m,4h... ) : ") 
         while True:
             for x in portfolio:
                 balance = binance.fetch_balance()
-                #print(balance)
                 freeusdt = float(balance['USDT']['free'])
-                now_rsi = setcandledata(x) #rsi가 20~30에서 매수, 70~80에선 매도를 하도록 구현할것
-                if(now_rsi<30):
+                canuseusdt = freeusdt/10
+                now_rsi = setcandledata(x,ti) #rsi가 20~30에서 매수, 70~80에선 매도를 하도록 구현할것
+                if(now_rsi<30 and canuseusdt>=2):
                     orderbook = client.get_order_book(symbol = x)
                     asks = float(orderbook['asks'][0][0])
                     coinquan = float(orderbook['asks'][0][1])
@@ -188,7 +197,11 @@ while True:
                     unit = balance[x[:-4]]['free']
                     if(unit>=0.001):
                         ret = binance.create_market_sell_order(x, unit)
-            time.sleep(3600)
+                        df = pd.DataFrame(ret) # 매도 내역 저장
+                        df.to_csv('sellorder.csv',index=True)
+            time.sleep(60)
+    elif(signal==7):
+        break
                 
         
         
