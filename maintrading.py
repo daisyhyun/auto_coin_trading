@@ -6,6 +6,7 @@
 #포트폴리오는 노이즈 전략 또는 웹크롤링을 기반으로 한 데이터분석 또는 머신러닝가격예측을 통한 방법 중 구성
 #매도는 매일 08시 0분에 진행
 #각 데이터 업데이트는 09시 0분 실행
+#사용자가 직접 매수 매도도 가능하도록 구현
 
 from statistics import quantiles
 import time
@@ -14,6 +15,8 @@ import ccxt
 import pandas as pd
 from binance.client import Client
 import requests
+import pprint
+
 
 Larry = 0.5   #변동성 돌파 전략을 위한 변수
 portfolionum = 3  #포트폴리오에 들어갈 코인의 수
@@ -88,7 +91,25 @@ def tickers_targets(tickers):
         targets[ticker] = target_price(ticker)
     return targets
 
+def buy_order(symbol,quantity,price):
+    order = client.order_limit_buy(
+        symbol=symbol,
+        quantity=quantity,
+        price=price
+    )
+    print(order)
+    df = pd.DataFrame(order) # 매수 내역 저장
+    df.to_csv('buyorder.csv',index=True)
 
+def sell_order(symbol,quantity,price):
+    order = client.order_limit_sell(
+        symbol=symbol,
+        quantity=quantity,
+        price=price
+    )
+    print(order)
+    df = pd.DataFrame(order) # 매도 내역 저장
+    df.to_csv('sellorder.csv',index=True)
 
 def sellorder(portfolio):
     try:
@@ -106,6 +127,40 @@ def sellorder(portfolio):
     except:
         pass
     
+def setrsiledata(symbol,time):   #입력 봉 기준으로 200개로 rsi 구하기
+    from datetime import datetime, timezone
+    from binance.spot import Spot as cl
+    client = cl(api_key,api_secret)
+    symbol = symbol #BTCUSDT로 현재 fix
+    time = time #유저로부터 입력
+    klines = client.klines(symbol,time,limit=200) #캔들 원하는 봉 갯수
+    df = pd.DataFrame(data={
+        'open_time' : [datetime.fromtimestamp(x[0]/1000, timezone.utc) for x in klines],
+        'open' : [float(x[1]) for x in klines],
+        'high' : [float(x[2]) for x in klines],
+        'low' : [float(x[3]) for x in klines],
+        'close' : [float(x[4]) for x in klines],
+        'volume' : [float(x[5]) for x in klines],
+        'close_time' : [datetime.fromtimestamp(x[6]/1000,timezone.utc) for x in klines],
+    })
+    df = df[['close']].copy()
+    df = make_rsi(df)
+    ret = float(df[-1:].values[0])
+    print(ret)
+    return ret
+    #print(df[-1]['RSI'])
+    #return df[-1]['RSI']
+
+def make_rsi(df):
+    df['change'] = df['close'] - df['close'].shift(1)
+    df.loc[df['change'] >= 0, 'pchange'] = df['change']
+    df.loc[df['change'] < 0, 'mchange'] = -df['change']
+    df = df.fillna(0)
+    df['AU'] = df['pchange'].rolling(14).mean()
+    df['DU'] = df['mchange'].rolling(14).mean()
+    df['RSI'] = df['AU'] / (df['AU'] + df['DU']) * 100
+    df = df[['RSI']].copy()
+    return df
 
 def make_portfolio(): #해당되는 전략
     df = get_tickers()
@@ -114,7 +169,6 @@ def make_portfolio(): #해당되는 전략
 now = datetime.datetime.now() #시작 시간
 sell_time1, sell_time2 = make_sell_times(now)                  
 setup_time1, setup_time2 = make_setup_times(now)   #매도 시간과 데이터 셋업타임 설정
-
 
 result = requests.get('https://api.binance.com/api/v3/ticker/price')
 js = result.json()
@@ -128,16 +182,44 @@ can_buy = budget()
 portfolio = ['XRPUSDT,BTCUSDT,ETHUSDT']
 
 while True:
-    now = datetime.datetime.now()
+    signal = int(input("Input your flag"))
+    if(signal==1):
+        print("Choose what coin you want to buy")
+        for k in symbols_usdt:
+            print(k,end=" ")
+        print()
+        symbol = input("")
+        orderbook = client.get_order_book(symbol=symbol)
+        asks = orderbook['asks']
+        bids = orderbook['bids']
+        pprint.pprint(asks)
+        pprint.pprint(bids)
+        balance = client.get_asset_balance(asset='USDT')
+        print("your balance : ",balance)
+        quantity, price = map(float,input("Input quantity and price of coin : ").split())
+        buy_order(symbol,quantity,price)
+    elif(signal==2):
+        print("Choose what coin you want to sell") #현재 계좌에 구매하고 있는 코인들의 이름과 가격출력
+        info = client.get_account()
+        df = pd.DataFrame(info["balances"])
+        df["free"] = df["free"].astype(float).round(4)
+        df = df[df["free"] > 0]
+        print(df)
+        symbol = input("Input the coin symbol : ")
+        quantity = float(input("Input the quantity of coin : "))
+        price = float(input("Input the price : "))
+        sellorder(symbol,quantity,price)
+    elif(signal==5):
+        now = datetime.datetime.now()
 
-    if sell_time1 < now < sell_time2: #8시에 가지고 있는 코인 전부 판매
-        sellorder(portfolio)                                                  # 각 가상화폐에 대해 매도 시도                      # 당일에는 더 이상 매수되지 않도록
-        time.sleep(10)
+        if sell_time1 < now < sell_time2: #8시에 가지고 있는 코인 전부 판매
+            sellorder(portfolio)                                                  # 각 가상화폐에 대해 매도 시도                      # 당일에는 더 이상 매수되지 않도록
+            time.sleep(10)
 
-    # 09시에 시장이 초기화 되면 매수 전략 시행
-    if setup_time1 < now < setup_time2:
-        result = requests.get('https://api.binance.com/api/v3/ticker/price')
-        js = result.json()
-        symbols = [x['symbol'] for x in js]
-        symbols_usdt = [x for x in symbols if 'USDT' in x]
-        targets = tickers_targets(symbols_usdt)    # 목표가 갱신
+        # 09시에 시장이 초기화 되면 매수 전략 시행
+        if setup_time1 < now < setup_time2:
+            result = requests.get('https://api.binance.com/api/v3/ticker/price')
+            js = result.json()
+            symbols = [x['symbol'] for x in js]
+            symbols_usdt = [x for x in symbols if 'USDT' in x]
+            targets = tickers_targets(symbols_usdt)    # 목표가 갱신

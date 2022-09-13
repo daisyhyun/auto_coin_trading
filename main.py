@@ -52,6 +52,7 @@ def sellorder(symbol,quantity,price):
     print(order)
     df = pd.DataFrame(order) # 매도 내역 저장
     df.to_csv('sellorder.csv',index=True)
+    
 def cancelorder(symbol,orderId):
     result = client.cancel_order(
         symbol=symbol,
@@ -100,13 +101,13 @@ def future_account_info():
     df = df.drop(columns=['updateTime'])
     print(df)
 
-def setcandledata(symbol,ti):
+def setcandledata(symbol,time):
     from datetime import datetime, timezone
     from binance.spot import Spot as cl
     client = cl(api_key,api_secret)
     symbol = symbol #BTCUSDT로 현재 fix
-    ti = ti #유저로부터 입력
-    klines = client.klines(symbol,ti,limit=200) #캔들 원하는 봉 갯수
+    time = time #유저로부터 입력
+    klines = client.klines(symbol,time,limit=200) #캔들 원하는 봉 갯수
     df = pd.DataFrame(data={
         'open_time' : [datetime.fromtimestamp(x[0]/1000, timezone.utc) for x in klines],
         'open' : [float(x[1]) for x in klines],
