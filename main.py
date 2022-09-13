@@ -7,7 +7,7 @@ import requests
 import pandas as pd
 from tqdm import tqdm
 import talib as ta
-
+import pybithumb
 with open("api.txt") as f:
     lines = f.readlines()
     api_key = lines[0].strip()
@@ -18,6 +18,20 @@ with open("api.txt") as f:
     })
     
 client = Client(api_key=api_key, api_secret=api_secret)
+
+#래리 윌리엄스의 변동성 돌파전략 
+#-> 당일 시가 + 변동률*0.5
+def target_price(symbol):
+    df = pybithumb.get_ohlcv(symbol)
+    yest = df.iloc[-2]
+
+    open = yest['close']
+    yest_high = yest['high']
+    yest_low = yest['low']
+    target = open +(yest_high-yest_low)*0.5 #목표가
+    print(target)
+    return target
+# 목표가는 매일매일 계산되어야함
 
 def buyorder(symbol,quantity,price):
     order = client.order_limit_buy(
