@@ -1,17 +1,31 @@
+# %%
 import pybithumb
 import numpy as np
-import talib as ta
+import pandas as pd
+import seaborn
+import pybithumb
+import matplotlib.pyplot as plt
 
 df = pybithumb.get_ohlcv("BTC")
-df = df['2018']
-df['range'] = (df['high'] - df['low']) * 0.5
-#df['rsi'] = ta.RSI(df['close'],timeperiod=14)
+df.to_csv('btc1.csv')
+df = df['2017']
+
+k = 0.5
+
+df['range'] = (df['high'] - df['low']) * k
+
 df['target'] = df['open'] + df['range'].shift(1)
+
 df['larry_profit_rate'] = np.where(df['high'] > df['target'], 
                    df['close'] / df['target'],
                    1)
-#df['buy_signal'] = np.where(df['rsi']<30,df['close'],0)
-#df['sell_signal'] = np.where(df['buy_signal']==0,0,df['close']-df[''])
-ror = df['larry_profit_rate'].cumprod()[-2]
+ror = df['larry_profit_rate'].cumprod()[-1]
 print(ror)
 df.to_csv('btc.csv')
+
+plt.figure(figsize=(16, 9))
+seaborn.lineplot(y=df['larry_profit_rate'], x=df.index)
+plt.xlabel('day')
+plt.ylabel('profit')
+
+# %%
