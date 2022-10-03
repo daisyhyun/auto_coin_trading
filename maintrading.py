@@ -47,13 +47,13 @@ def budget():
     except:
         return 0
 
-
+'''
 def get_tickers():
     tickers = client.get_all_tickers()
     df = pd(data=tickers)
     df.set_index('symbol', inplace=True) # symbol , price
     return df
-
+'''
 
 def cur_price():
     coin = client.get_symbol_ticker(symbol=portfolio[0])
@@ -87,7 +87,6 @@ def buy_order(symbol,quantity,price):
             price=price
         )
         print(order)
-        order.t
         df = pd(order) # 매수 내역 저장
         df = df[-1]
         df.to_csv('buyorder.csv',index=True)
@@ -247,7 +246,7 @@ while True:
         buy_order(symbol,quantity,price)
 
     elif(signal==2):
-
+    
         print("Choose what coin you want to sell") #현재 계좌에 구매하고 있는 코인들의 이름과 가격출력
         
         info = client.get_account()
@@ -288,6 +287,7 @@ while True:
 
                 #매도
                 if(now_rsi>80):
+
                     print("매도")
                     sellorder(portfolio[0])
 
@@ -296,6 +296,7 @@ while True:
         elif(signal==2):
 
             now = datetime.datetime.now() 
+
             sell_time1, sell_time2 = make_sell_times(now)                  
             setup_time1, setup_time2 = make_setup_times(now)   
 
@@ -304,7 +305,7 @@ while True:
                 now = datetime.datetime.now()
                 
                 if sell_time1 < now < sell_time2: 
-                    sellorder(portfolio)                                                               
+                    sellorder(portfolio[0])                                                               
                     time.sleep(5)
                 
                 if setup_time1 < now < setup_time2:
@@ -324,6 +325,7 @@ while True:
                 prices = cur_price()
 
                 # 매수
+                
                 if(prices<targets[portfolio[0]]):
                     print("매수")
                     print(can_budget/prices)
@@ -372,7 +374,7 @@ while True:
                 now = datetime.datetime.now()
 
                 if sell_time1 < now < sell_time2: 
-                    sellorder(portfolio)                                                               
+                    sellorder(portfolio[0])                                                               
                     time.sleep(5)
                 
                 if setup_time1 < now < setup_time2:  
