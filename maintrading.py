@@ -1,12 +1,13 @@
 #프로그램 구현 전략
-#거래시 rsi와 macd를 값을 구함
+#거래시 macd를 값을 구함
 #해당 값들과 타켓 값이 모두 true일 때 매수/매도 실행
 #각 초마다 계속해서 실시간으로 데이터를 받아오며 진행한다
 #백트레킹결과는 따로 존재
 #포트폴리오는 비트코인으로 픽스
-#매도는 매일 08시 0분에 진행
+#매도는 매일 08시 30분에 진행
 #각 데이터 업데이트는 09시 0분 실행
 #사용자가 직접 매수 매도도 가능하도록 구현
+
 
 from statistics import quantiles
 import time
@@ -22,6 +23,7 @@ Larry = 0.5   #변동성 돌파 전략을 위한 변수
 
 now_having = 0 #보유 BTC의 갯수
 
+
 with open("api.txt") as f:
     lines = f.readlines()
     api_key = lines[0].strip()
@@ -34,6 +36,109 @@ with open("api.txt") as f:
 
 client = Client(api_key=api_key,api_secret=api_secret)
 
+
+def budget():
+    try:
+        balance = binance.fetch_balance()
+        freeusdt = float(balance['USDT']['free'])
+        budget_per_coin = freeusdt / 2.5  
+        print(freeusdt, budget_per_coin) 
+        return budget_per_coin
+    except:
+        return 0
+
+
+def get_tickers():
+    tickers = client.get_all_tickers()
+    df = pd(data=tickers)
+    df.set_index('symbol', inplace=True) # symbol , price
+    return df
+
+
+def cur_price():
+    coin = client.get_symbol_ticker(symbol=portfolio[0])
+    now = datetime.datetime.now()
+    price = float(coin['price'])
+    print(now, price)
+    return price
+
+
+def target_price(ticker):
+
+    try:
+        resp = binance.fetch_ohlcv(ticker, '1d', limit=30)
+        df = pd(resp, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
+        yesterday = df.iloc[-1]
+        today_open = yesterday['close']
+        yesterday_high = yesterday['high']
+        yesterday_low = yesterday['low']
+        target = today_open + (yesterday_high - yesterday_low) * Larry
+        return target
+    except:
+        
+        return None
+
+
+def buy_order(symbol,quantity,price):
+    try:
+        order = client.order_limit_buy(
+            symbol=symbol,
+            quantity=quantity,
+            price=price
+        )
+        print(order)
+        order.t
+        df = pd(order) # 매수 내역 저장
+        df = df[-1]
+        df.to_csv('buyorder.csv',index=True)
+    except:
+        pass
+
+
+def buyorder(symbol,quantity):
+    try:
+        order = client.order_market_buy(
+            symbol=symbol,
+            quantity=quantity
+        )
+        print(order)
+        df = pd(order) # 매수 내역 저장
+        df = df[-1]
+        df.to_csv('buyorder.csv',index=True)
+    except:
+        pass
+
+
+def sell_order(symbol,quantity,price):
+    try:
+        order = client.order_limit_sell(
+            symbol=symbol,
+            quantity=quantity,
+            price=price
+        )
+        print(order)
+        df = pd(order) # 매도 내역 저장
+        df = df[-1]
+        df.to_csv('sellorder.csv',index=True)
+    except:
+        pass
+
+
+def sellorder(ticker):
+    try:
+        balance = binance.fetch_balance()
+        freeunit = float(balance[ticker]['free'])  #현재 매도 가능한 수량
+        if(freeunit > 0):
+            try:
+                order = binance.create_market_sell_order(ticker)    
+            except:
+                pass
+            df = pd(order)
+            df = df[-1]
+            print("매도")
+            df.to_csv('sellorder.csv',index=True)
+    except:
+        pass
 
 def make_sell_times(now):
     sell_time = datetime.datetime(year=now.year,
@@ -56,112 +161,6 @@ def make_setup_times(now):
                                  second=0)
     start_5secs = start + datetime.timedelta(seconds=5)
     return start, start_5secs
-
-def budget():
-    try:
-        balance = binance.fetch_balance()
-        freeusdt = float(balance['USDT']['free'])
-        
-        budget_per_coin = freeusdt / 2.5  
-        print(freeusdt, budget_per_coin) 
-        return budget_per_coin
-    except:
-        return 0
-
-def get_tickers():
-    tickers = client.get_all_tickers()
-    df = pd(data=tickers)
-    df.set_index('symbol', inplace=True) # symbol , price
-    return df
-
-def cur_price():
-    coin = client.get_symbol_ticker(symbol=portfolio[0])
-    now = datetime.datetime.now()
-    price = float(coin['price'])
-    print(now, price)
-    return price
-
-def target_price(ticker):
-
-    try:
-        
-        resp = binance.fetch_ohlcv(ticker, '1d', limit=30)
-
-        df = pd(resp, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
-        yesterday = df.iloc[-1]
-        today_open = yesterday['close']
-        yesterday_high = yesterday['high']
-        yesterday_low = yesterday['low']
-        target = today_open + (yesterday_high - yesterday_low) * Larry
-        return target
-    except:
-        
-        return None
-
-def tickers_targets(ticker):
-    targets = {}
-    targets[ticker] = target_price(ticker)
-    return targets
-
-def buy_order(symbol,quantity,price):
-    try:
-        order = client.order_limit_buy(
-            symbol=symbol,
-            quantity=quantity,
-            price=price
-        )
-        print(order)
-        order.t
-        df = pd(order) # 매수 내역 저장
-        df = df[-1]
-        df.to_csv('buyorder.csv',index=True)
-    except:
-        pass
-
-def buyorder(symbol,quantity):
-    try:
-        order = client.order_market_buy(
-            symbol=symbol,
-            quantity=quantity
-        )
-        print(order)
-        df = pd(order) # 매수 내역 저장
-        df = df[-1]
-        df.to_csv('buyorder.csv',index=True)
-    except:
-        pass
-
-def sell_order(symbol,quantity,price):
-    try:
-        order = client.order_limit_sell(
-            symbol=symbol,
-            quantity=quantity,
-            price=price
-        )
-        print(order)
-        df = pd(order) # 매도 내역 저장
-        df = df[-1]
-        df.to_csv('sellorder.csv',index=True)
-    except:
-        pass
-
-def sellorder(portfolio):
-    try:
-        for ticker in portfolio:
-            balance = binance.fetch_balance()
-            freeunit = float(balance[ticker]['free'])  #현재 매도 가능한 수량
-            if(freeunit > 0):
-                try:
-                    order = binance.create_market_sell_order(ticker)
-                    
-                except:
-                    pass
-                df = pd(order)
-                df = df[-1]
-                print("매도")
-                df.to_csv('sellorder.csv',index=True)
-    except:
-        pass
 
 
 def setrsiledata(symbol,ti):   #입력 봉 기준으로 200개로 rsi 구하기
@@ -200,6 +199,7 @@ def make_rsi(df):
     df = df[['RSI']].copy()
     return df
 
+
 def make_macd(df):
     macd_short, macd_long, macd_signal=12,26,9 
     df["MACD_short"]=df["close"].ewm(span=macd_short).mean()
@@ -211,24 +211,11 @@ def make_macd(df):
     df = df[['MACD_sign']].copy()
     return df
 
-now = datetime.datetime.now() #시작 시간
-sell_time1, sell_time2 = make_sell_times(now)                  
-setup_time1, setup_time2 = make_setup_times(now)   #매도 시간과 데이터 셋업타임 설정
 
-result = requests.get('https://api.binance.com/api/v3/ticker/price')
-js = result.json()
-symbols = [x['symbol'] for x in js]
-symbols_usdt = [x for x in symbols if 'USDT' in x] #마켓에서 usdt 티커를 불러옴
 portfolio = ['BTCUSDT']
-targets = tickers_targets("BTCUSDT")
+targets = target_price(portfolio[0])  
 can_buy = budget()
 
-print(targets)
-
-
-
-#cur_rsi, cur_macd = setrsiledata(portfolio[0],num_candle)
-#print(setcandledata(portfolio[0],num_candle))
 
 while True:
 
@@ -237,6 +224,11 @@ while True:
     if(signal==1):
 
         print("Choose what coin you want to buy")
+
+        result = requests.get('https://api.binance.com/api/v3/ticker/price')
+        js = result.json()
+        symbols = [x['symbol'] for x in js]
+        symbols_usdt = [x for x in symbols if 'USDT' in x]
 
         for k in symbols_usdt:
             print(k,end=" ")
@@ -267,49 +259,152 @@ while True:
         symbol = input("Input the coin symbol : ")
         quantity = float(input("Input the quantity of coin : "))
         price = float(input("Input the price : "))
+
         sellorder(symbol,quantity,price)
 
     elif(signal==5):
+
         print("start program")
-        num_candle = input("Input indicator's candle nums : ")
 
-        while True:
-            now = datetime.datetime.now()
+        signal = int(input(" Press 1 to use RSI \nPress 2 to use  Larry R. Williams \nPress 3 to use MACD \nPress 4 to use MACD and Larry : "))
 
-            if sell_time1 < now < sell_time2:  #08시 30분 매도
+        if(signal==1):
 
-                sellorder(portfolio)                                                               
-                time.sleep(10)
+            num_candle = input("Input indicator's candle nums : ")
 
-            if setup_time1 < now < setup_time2:  #09시 00분 당일 기준으로 셋팅
+            while True:
+                can_budget = budget()
+                prices = cur_price()
 
-                result = requests.get('https://api.binance.com/api/v3/ticker/price')
-                js = result.json()
-                symbols = [x['symbol'] for x in js]
-                symbols_usdt = [x for x in symbols if 'USDT' in x]
-                targets = tickers_targets(symbols_usdt)   
+                # 매수
+                now_rsi, now_macd = setrsiledata(portfolio[0],num_candle)
 
-                can_budget = budget()   
-                sell_time1, sell_time2 = make_sell_times(now)      
-                setup_time1, setup_time2 = make_setup_times(now)  
-                time.sleep(10)
-            can_budget = budget()
-            prices = cur_price()
-            # 매수
-            now_rsi, now_macd = setrsiledata(portfolio[0],num_candle)
-            if(now_macd =='매수' and prices<targets[portfolio[0]]):
-            #if(now_rsi<20 and now_macd =='매수' and prices<targets[portfolio[0]]):
-                print("매수")
-                print(can_budget/prices)
-                quan = round(can_budget/prices,5)
-                buy_order(portfolio[0],quan,prices)
-                #buy_order(portfolio[0],can_budget/prices,prices)
+                if(now_rsi<20):
 
-            #매도
-            if(now_macd =='매도'):
-            #if(now_rsi>80 and now_macd =='매도'):
-               # print("매도")
-                sellorder(portfolio[0])
-            
-            time.sleep(1)
+                    print("매수")
+                    print(can_budget/prices)
+                    quan = round(can_budget/prices,5)
+                    buy_order(portfolio[0],quan,prices)
 
+                #매도
+                if(now_rsi>80):
+                    print("매도")
+                    sellorder(portfolio[0])
+
+                time.sleep(1)
+
+        elif(signal==2):
+
+            now = datetime.datetime.now() 
+            sell_time1, sell_time2 = make_sell_times(now)                  
+            setup_time1, setup_time2 = make_setup_times(now)   
+
+            while True:
+
+                now = datetime.datetime.now()
+                
+                if sell_time1 < now < sell_time2: 
+                    sellorder(portfolio)                                                               
+                    time.sleep(5)
+                
+                if setup_time1 < now < setup_time2:
+
+                    result = requests.get('https://api.binance.com/api/v3/ticker/price')
+                    js = result.json()
+
+                    targets = target_price(portfolio[0])   
+
+                    can_budget = budget()   
+                    sell_time1, sell_time2 = make_sell_times(now)      
+                    setup_time1, setup_time2 = make_setup_times(now)  
+
+                    time.sleep(10)
+
+                can_budget = budget()
+                prices = cur_price()
+
+                # 매수
+                if(prices<targets[portfolio[0]]):
+                    print("매수")
+                    print(can_budget/prices)
+                    quan = round(can_budget/prices,5)
+                    buy_order(portfolio[0],quan,prices)
+
+                time.sleep(1)
+
+        elif(signal==3):
+
+            num_candle = input("Input indicator's candle nums : ")
+
+            while True:
+
+                can_budget = budget()
+                prices = cur_price()
+
+                # 매수
+
+                now_rsi, now_macd = setrsiledata(portfolio[0],num_candle)
+
+                if(now_macd =='매수'):
+
+                    print("매수")
+                    print(can_budget/prices)
+                    quan = round(can_budget/prices,5)
+                    buy_order(portfolio[0],quan,prices)
+
+                #매도
+                if(now_macd =='매도'):
+                
+                    sellorder(portfolio[0])
+
+                time.sleep(1)
+
+        elif(signal==4):
+
+            now = datetime.datetime.now() 
+            sell_time1, sell_time2 = make_sell_times(now)                  
+            setup_time1, setup_time2 = make_setup_times(now)  
+
+            num_candle = input("Input indicator's candle nums : ")
+
+            while True:
+
+                now = datetime.datetime.now()
+
+                if sell_time1 < now < sell_time2: 
+                    sellorder(portfolio)                                                               
+                    time.sleep(5)
+                
+                if setup_time1 < now < setup_time2:  
+
+                    result = requests.get('https://api.binance.com/api/v3/ticker/price')
+
+                    js = result.json()
+
+                    targets = target_price(portfolio[0])    
+
+                    can_budget = budget()   
+                    sell_time1, sell_time2 = make_sell_times(now)      
+                    setup_time1, setup_time2 = make_setup_times(now)  
+                    time.sleep(10)
+
+                can_budget = budget()
+                prices = cur_price()
+
+                # 매수
+
+                now_rsi, now_macd = setrsiledata(portfolio[0],num_candle)
+
+                if(now_macd =='매수' and prices<targets[portfolio[0]]):
+                    print("매수")
+                    print(can_budget/prices)
+                    quan = round(can_budget/prices,5)
+                    buy_order(portfolio[0],quan,prices)
+
+                #매도
+
+                if(now_macd =='매도'):
+                
+                    sellorder(portfolio[0])
+
+                time.sleep(1)
