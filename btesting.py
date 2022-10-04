@@ -6,7 +6,9 @@ import pandas as pd
 import seaborn
 import pybithumb
 import matplotlib.pyplot as plt
+
 macd_short, macd_long, macd_signal=12,26,9 
+
 df = pybithumb.get_ohlcv("BTC")
 df = df['2018']
 df['range'] = (df['high'] - df['low']) * 0.5

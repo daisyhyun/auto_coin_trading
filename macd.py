@@ -36,5 +36,6 @@ plt.figure(figsize=(16, 9))
 seaborn.lineplot(y=df['buying_profit'], x=df.index)
 plt.xlabel('day')
 plt.ylabel('profit')
+
 print("2021's macd profit : ",df['buying_profit'].cumprod().iloc[-1])
 # %%

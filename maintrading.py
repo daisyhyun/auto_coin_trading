@@ -64,10 +64,22 @@ def cur_price():
 
 
 def target_price(ticker):
-
     try:
-        resp = binance.fetch_ohlcv(ticker, '1d', limit=30)
-        df = pd(resp, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
+        from datetime import datetime, timezone
+        from binance.spot import Spot as cl
+        cli = cl(api_key,api_secret)
+        symbol = ticker
+        ti = '1d' #유저로부터 입력
+        klines = cli.klines(symbol,ti,limit=200) #캔들 원하는 봉 갯수
+        df = pd(data={
+            'open_time' : [datetime.fromtimestamp(x[0]/1000, timezone.utc) for x in klines],
+            'open' : [float(x[1]) for x in klines],
+            'high' : [float(x[2]) for x in klines],
+            'low' : [float(x[3]) for x in klines],
+            'close' : [float(x[4]) for x in klines],
+            'volume' : [float(x[5]) for x in klines],
+            'close_time' : [datetime.fromtimestamp(x[6]/1000,timezone.utc) for x in klines],
+        })
         yesterday = df.iloc[-1]
         today_open = yesterday['close']
         yesterday_high = yesterday['high']
@@ -75,7 +87,6 @@ def target_price(ticker):
         target = today_open + (yesterday_high - yesterday_low) * Larry
         return target
     except:
-        
         return None
 
 
@@ -146,6 +157,7 @@ def make_sell_times(now):
                                   hour=8,
                                   minute=30,
                                   second=0)
+
     sell_time_5secs = sell_time + datetime.timedelta(seconds=5) #정확한 시간을 잴 수 없기 때문에 5초의 텀
     return sell_time, sell_time_5secs
 
@@ -158,6 +170,7 @@ def make_setup_times(now):
                                  hour=9,
                                  minute=0,
                                  second=0)
+                                 
     start_5secs = start + datetime.timedelta(seconds=5)
     return start, start_5secs
 
@@ -308,10 +321,7 @@ while True:
                     sellorder(portfolio[0])                                                               
                     time.sleep(5)
                 
-                if setup_time1 < now < setup_time2:
-
-                    result = requests.get('https://api.binance.com/api/v3/ticker/price')
-                    js = result.json()
+                if setup_time1 < now < setup_time2: 
 
                     targets = target_price(portfolio[0])   
 
@@ -325,7 +335,7 @@ while True:
                 prices = cur_price()
 
                 # 매수
-                
+
                 if(prices<targets[portfolio[0]]):
                     print("매수")
                     print(can_budget/prices)
@@ -379,10 +389,7 @@ while True:
                 
                 if setup_time1 < now < setup_time2:  
 
-                    result = requests.get('https://api.binance.com/api/v3/ticker/price')
-
-                    js = result.json()
-
+                    
                     targets = target_price(portfolio[0])    
 
                     can_budget = budget()   
