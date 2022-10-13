@@ -47,13 +47,6 @@ def budget():
     except:
         return 0
 
-'''
-def get_tickers():
-    tickers = client.get_all_tickers()
-    df = pd(data=tickers)
-    df.set_index('symbol', inplace=True) # symbol , price
-    return df
-'''
 
 def cur_price():
     coin = client.get_symbol_ticker(symbol=portfolio[0])
